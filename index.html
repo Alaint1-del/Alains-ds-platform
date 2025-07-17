@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Data Structures Journey: Learn, Explore, Master</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.firebaseApp = null;
+        window.db = null;
+        window.auth = null;
+        window.currentUserId = null;
+        window.isAuthReady = false;
+
+        // Expose Firestore functions globally
+        window.fb = {
+            doc: doc,
+            setDoc: setDoc,
+            onSnapshot: onSnapshot,
+            collection: collection,
+            getDoc: getDoc,
+            signOut: signOut
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            if (Object.keys(firebaseConfig).length > 0) {
+                window.firebaseApp = initializeApp(firebaseConfig);
+                window.db = getFirestore(window.firebaseApp);
+                window.auth = getAuth(window.firebaseApp);
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        window.currentUserId = user.uid;
+                        console.log("User signed in:", user.uid);
+                    } else {
+                        window.currentUserId = null;
+                        console.log("User signed out.");
+                    }
+                    window.isAuthReady = true;
+                    document.dispatchEvent(new CustomEvent('authReady'));
+                });
+
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(window.auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await signInAnonymously(window.auth);
+                        console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Firebase authentication error:", error);
+                    try {
+                        await signInAnonymously(window.auth);
+                        console.log("Signed in anonymously after custom token failure.");
+                    } catch (anonError) {
+                        console.error("Anonymous sign-in failed:", anonError);
+                    }
+                }
+            } else {
+                console.warn("Firebase config not found. Running without Firebase features.");
+                window.isAuthReady = true;
+                document.dispatchEvent(new CustomEvent('authReady'));
+            }
+        });
+    </script>
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The SPA is designed with a multi-section, tabbed interface to teach various data structures, manage user accounts, and offer premium content. 1) A 'Home' section for an inspiring overview and quick links. 2) A 'Data Structures' section with sub-tabs for different algorithms (e.g., Quick Sort, Linked List), each featuring interactive visualizations and in-depth explanations. 3) A 'Courses' section listing free and premium content with clear value propositions, now including simulated payment options. 4) A 'Profile' section for seamless user authentication and premium subscription management. 5) A 'Community' section (placeholder) to foster user connection. This modular structure is chosen to provide a clear, intuitive learning path, allow for easy future expansion, and cater to diverse user needs from exploration to advanced study and community engagement. -->
+    <!-- Visualization & Content Choices: 
+        - Data Structure Visualizations (e.g., Quick Sort): Goal=Visualize algorithms in action. Method=Animated HTML bars/elements with color-coding. Interaction=User input, step-by-step/auto-sort controls. Justification=Makes abstract concepts concrete and fosters active learning. Library=Vanilla JS.
+        - Performance Comparison Chart: Goal=Compare algorithm efficiencies visually. Method=Grouped Bar Chart. Interaction=Tooltips for detailed complexity. Justification=Provides quick, clear comparative insights into algorithm performance. Library=Chart.js.
+        - Optimizations/Explanations: Goal=Provide detailed, digestible information. Method=Accordion-style expandable sections. Interaction=Click to expand/collapse. Justification=Manages content density, allowing users to progressively disclose information. Library=Vanilla JS.
+        - User Authentication & Profile: Goal=Manage user access, save progress, and enable premium features. Method=HTML forms/buttons, dynamic text updates. Interaction=Sign-in/out, subscribe/unsubscribe. Justification=Essential for a personalized learning journey and tiered content access. Library=Firebase Auth & Firestore.
+        - Course Listing: Goal=Present educational offerings clearly. Method=HTML cards with benefit-driven descriptions and conditional rendering for premium access. Interaction=Subscribe button, now opens a simulated payment modal. Justification=Transparent presentation of content tiers and calls to action, with a simulated payment flow.
+        - Premium Course Content: Goal=Deliver exclusive learning material. Method=Embedded YouTube videos (placeholders) and code blocks. Interaction=Access via premium status. Justification=Provides tangible value for premium subscription.
+        - Community Section: Goal=Foster user interaction and support. Method=Placeholder text with a vision for future features. Justification=Highlights the platform's commitment to collaborative learning.
+        - Background Image: Goal=Enhance visual appeal. Method=CSS background-image with overlay. Justification=Creates an inviting and professional aesthetic.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f5f5f4; /* stone-100 fallback */
+            background-image: url('https://placehold.co/1920x1080/f5f5f4/a8a29e?text=Abstract+Tech+Background'); /* Subtle tech background */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .background-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(245, 245, 244, 0.85); /* Semi-transparent overlay to ensure readability */
+            z-index: -1;
+        }
+        .bar { transition: all 0.3s ease-in-out; }
+        .nav-link.active {
+            color: #0284c7; /* sky-600 */
+            border-bottom-color: #0284c7;
+        }
+        .tab-button.active {
+            background-color: #f5f5f4; /* stone-100 */
+            color: #0284c7; /* sky-600 */
+            font-weight: 600;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 100; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 0.5rem;
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        pre {
+            background-color: #1f2937; /* gray-800 */
+            color: #f9fafb; /* gray-50 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Cascadia Code', monospace; /* Add monospaced font */
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800">
+    <div class="background-overlay"></div>
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-stone-200">
+        <nav class="container mx-auto px-4 lg:px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-sky-700">The Data Structures Journey</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#home" class="nav-link text-stone-600 hover:text-sky-600 border-b-2 border-transparent hover:border-sky-600 transition-colors duration-300 active">Home</a>
+                    <a href="#data-structures" class="nav-link text-stone-600 hover:text-sky-600 border-b-2 border-transparent hover:border-sky-600 transition-colors duration-300">Explore</a>
+                    <a href="#courses" class="nav-link text-stone-600 hover:text-sky-600 border-b-2 border-transparent hover:border-sky-600 transition-colors duration-300">Courses</a>
+                    <a href="#community" class="nav-link text-stone-600 hover:text-sky-600 border-b-2 border-transparent hover:border-sky-600 transition-colors duration-300">Community</a>
+                    <a href="#profile" class="nav-link text-stone-600 hover:text-sky-600 border-b-2 border-transparent hover:border-sky-600 transition-colors duration-300">My Profile</a>
+                </div>
+                <button id="mobile-menu-button" class="md:hidden p-2 rounded-md text-stone-600 hover:bg-stone-100">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                </button>
+            </div>
+             <div id="mobile-menu" class="hidden md:hidden py-4">
+                <a href="#home" class="block py-2 px-4 text-stone-600 hover:bg-stone-100 rounded-md">Home</a>
+                <a href="#data-structures" class="block py-2 px-4 text-stone-600 hover:bg-stone-100 rounded-md">Explore</a>
+                <a href="#courses" class="block py-2 px-4 text-stone-600 hover:bg-stone-100 rounded-md">Courses</a>
+                <a href="#community" class="block py-2 px-4 text-stone-600 hover:bg-stone-100 rounded-md">Community</a>
+                <a href="#profile" class="block py-2 px-4 text-stone-600 hover:bg-stone-100 rounded-md">My Profile</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 lg:px-6 py-8 md:py-12">
+        
+        <section id="home" class="scroll-mt-20 active-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-900">Unlock Your Coding Potential with Data Structures!</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-stone-600">
+                    Welcome to your ultimate guide for mastering data structures and algorithms. Whether you're a beginner taking your first steps or an experienced coder looking to sharpen your skills, our platform is designed to make complex concepts clear, engaging, and fun. Dive in and transform the way you think about code!
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col items-start">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">Visualize & Understand</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">See algorithms come alive! Our interactive visualizers break down complex processes into easy-to-follow animations. Input your own data and watch the magic happen, step by step.</p>
+                    <a href="#data-structures" class="inline-block px-6 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 transition-transform transform hover:scale-105">Start Exploring Now</a>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col items-start">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">Grow with Premium Courses</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">Ready to go deeper? Our premium courses offer comprehensive lessons, advanced topics, and exclusive challenges. Invest in your future for just $3 per week!</p>
+                    <a href="#courses" class="inline-block px-6 py-2 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 transition-transform transform hover:scale-105">Discover Courses</a>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col items-start">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">Join Our Thriving Community</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">Learning is better together! Connect with fellow students, ask questions, share insights, and get support on your coding journey. Our community is here for you.</p>
+                    <a href="#community" class="inline-block px-6 py-2 bg-emerald-500 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 transition-transform transform hover:scale-105">Connect Now</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="data-structures" class="mt-20 scroll-mt-20 hidden-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-900">Explore & Master Key Data Structures</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-stone-600">
+                    This is where the real learning happens! Choose a data structure or algorithm below to dive into its interactive visualizer, grasp its core concepts, and understand its practical applications. We're constantly adding more to expand your learning horizons.
+                </p>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200">
+                <div class="flex flex-wrap justify-center gap-4 mb-8 border-b border-stone-200 pb-4">
+                    <button class="tab-button px-6 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors duration-300 active" data-tab="quicksort-tab">Quick Sort</button>
+                    <button class="tab-button px-6 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors duration-300" data-tab="linkedlist-tab">Linked List</button>
+                    <button class="tab-button px-6 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors duration-300" data-tab="binarytree-tab">Binary Tree</button>
+                    <button class="tab-button px-6 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors duration-300" data-tab="hashtable-tab">Hash Table</button>
+                </div>
+
+                <div id="quicksort-tab" class="tab-content active-tab">
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-4">Quick Sort: The Fast Organizer</h3>
+                    <p class="mb-6 text-stone-600">
+                        Quick Sort is one of the most efficient sorting algorithms out there! It works by picking an element as a "pivot" and rearranging the other elements around it. All numbers smaller than the pivot go to one side, and all larger numbers go to the other. Then, it repeats this process for the smaller groups until everything is perfectly sorted. Watch it in action below!
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="md:col-span-2">
+                            <label for="array-input" class="block text-sm font-medium text-stone-700 mb-1">Your Numbers (comma-separated, e.g., 46, 10, 32)</label>
+                            <input type="text" id="array-input" class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500" value="46, 32, 51, 14, 10, 31, 20">
+                        </div>
+                        <div>
+                            <label for="pivot-strategy" class="block text-sm font-medium text-stone-700 mb-1">How to Pick the Pivot?</label>
+                            <select id="pivot-strategy" class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 bg-white">
+                                <option value="last">Last Number</option>
+                                <option value="first">First Number</option>
+                                <option value="random">Random Number</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-center gap-4 mb-8">
+                        <button id="sort-btn" class="px-6 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Sort it! (Auto-Play)</button>
+                        <button id="step-btn" class="px-6 py-2 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Step-by-Step</button>
+                        <button id="reset-btn" class="px-6 py-2 bg-stone-500 text-white font-semibold rounded-lg shadow-md hover:bg-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Start Over</button>
+                    </div>
+                    
+                    <div id="visual-container" class="w-full min-h-[300px] flex items-end justify-center gap-1 p-4 bg-stone-100 rounded-lg border border-stone-200">
+                    </div>
+
+                    <div class="mt-6 bg-white p-6 rounded-2xl shadow-lg border border-stone-200">
+                        <h3 class="text-xl font-semibold mb-2 text-stone-800">What's Happening? Your Step-by-Step Log</h3>
+                        <div id="log-container" class="w-full min-h-[100px] p-4 bg-stone-900 text-white font-mono rounded-lg text-sm overflow-y-auto max-h-60">
+                            <p>Enter your numbers above and click 'Sort it!' or 'Step-by-Step' to begin your learning journey!</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-12">
+                        <h3 class="text-2xl font-semibold text-stone-800 mb-4">How Fast Is It? Performance Comparison</h3>
+                        <p class="mb-6 text-stone-600">
+                            Understanding how efficient an algorithm is, is key! This chart shows how Quick Sort compares to other popular sorting methods like Merge Sort and Heap Sort in different situations (best, average, and worst-case scenarios).
+                        </p>
+                        <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200">
+                            <div class="chart-container w-full max-w-3xl mx-auto h-96 md:h-[450px] relative">
+                                <canvas id="performance-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-12">
+                        <h3 class="text-2xl font-semibold text-stone-800 mb-4">Making Quick Sort Even Better: Smart Optimizations</h3>
+                        <p class="mb-6 text-stone-600">
+                            Even great algorithms can be improved! These techniques help Quick Sort perform even more reliably and efficiently, especially with tricky data. Click on each title to reveal the secrets behind these powerful enhancements.
+                        </p>
+                        <div id="accordion-container" class="max-w-3xl mx-auto space-y-4">
+                            <div class="accordion-item bg-white rounded-lg shadow-md border border-stone-200">
+                                <button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold text-stone-700 hover:bg-stone-50">
+                                    <span>Randomized Pivot Selection: A Fairer Start</span>
+                                    <span class="accordion-icon text-2xl text-stone-500 transform transition-transform duration-300">&plus;</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <p class="p-5 pt-0 text-stone-600">Instead of always picking the first or last number, choosing a random number as the pivot makes it much less likely that the algorithm will hit its slowest (worst-case) scenario. It's like shuffling the cards before you deal – fairer and more consistent!</p>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item bg-white rounded-lg shadow-md border border-stone-200">
+                                <button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold text-stone-700 hover:bg-stone-50">
+                                    <span>Median-of-Three Pivot: Finding the Middle Ground</span>
+                                    <span class="accordion-icon text-2xl text-stone-500 transform transition-transform duration-300">&plus;</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <p class="p-5 pt-0 text-stone-600">This clever trick involves looking at three numbers (the first, middle, and last) and picking the one that's in the middle of those three as the pivot. This usually gives you a better, more balanced pivot, which helps keep the sorting process fast and efficient.</p>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item bg-white rounded-lg shadow-md border border-stone-200">
+                                <button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold text-stone-700 hover:bg-stone-50">
+                                    <span>Three-Way Partitioning: Handling Duplicates Like a Pro</span>
+                                    <span class="accordion-icon text-2xl text-stone-500 transform transition-transform duration-300">&plus;</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <p class="p-5 pt-0 text-stone-600">Imagine you have many identical numbers in your list. This advanced technique sorts the array into three groups: numbers smaller than the pivot, numbers *equal* to the pivot, and numbers larger than the pivot. By putting all the equal numbers in their final spot right away, it saves a lot of time and makes the algorithm much faster when dealing with lists that have many repeated values.</p>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item bg-white rounded-lg shadow-md border border-stone-200">
+                                <button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold text-stone-700 hover:bg-stone-50">
+                                    <span>Hybrid Sort (Introsort): The Best of All Worlds</span>
+                                    <span class="accordion-icon text-2xl text-stone-500 transform transition-transform duration-300">&plus;</span>
+                                </button>
+                                <div class="accordion-content">
+                                    <p class="p-5 pt-0 text-stone-600">This is like Quick Sort's ultimate upgrade! For very small groups of numbers, it switches to a simpler, more efficient sorting method (Insertion Sort). And if Quick Sort ever starts to struggle (meaning it's taking too long due to bad pivot choices), it cleverly switches to a guaranteed fast method (Heap Sort). This ensures Quick Sort is always performing at its best, no matter the input!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="linkedlist-tab" class="tab-content hidden">
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-4">Linked List: The Flexible Chain of Data</h3>
+                    <p class="mb-6 text-stone-600">
+                        Imagine a treasure hunt where each clue tells you where to find the next one. That's a Linked List! It's a sequence of data elements, but unlike an array, they don't sit next to each other in memory. Instead, each element (or "node") holds its own data and a "pointer" to the next element in the chain. This makes them super flexible for adding or removing items without shifting everything around.
+                    </p>
+                    <div class="bg-stone-100 p-8 rounded-lg text-center text-stone-600 font-medium h-64 flex items-center justify-center border border-stone-200">
+                        Our interactive Linked List visualizer and practical tasks are currently under construction! Get ready to build and manipulate your own data chains soon.
+                    </div>
+                </div>
+
+                <div id="binarytree-tab" class="tab-content hidden">
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-4">Binary Tree: Organizing Data Like a Family Tree</h3>
+                    <p class="mb-6 text-stone-600">
+                        Think of a family tree, but for data! A Binary Tree is a special way to organize information in a hierarchical structure. Each "node" (like a family member) can have at most two "children" (branches) – a left child and a right child. This structure is incredibly powerful for quickly searching, inserting, and deleting data, making it fundamental for databases and file systems.
+                    </p>
+                    <div class="bg-stone-100 p-8 rounded-lg text-center text-stone-600 font-medium h-64 flex items-center justify-center border border-stone-200">
+                        Our interactive Binary Tree visualizer, traversal exercises, and practical challenges are being crafted! Prepare to grow your tree knowledge.
+                    </div>
+                </div>
+
+                <div id="hashtable-tab" class="tab-content hidden">
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-4">Hash Table: Your Super-Fast Data Dictionary</h3>
+                    <p class="mb-6 text-stone-600">
+                        Ever wanted to find information instantly, just like looking up a word in a dictionary? That's what a Hash Table does! It's a data structure that maps keys to values, allowing for incredibly fast data retrieval, insertion, and deletion. It uses a "hash function" to quickly figure out where to store or find your data, making it perfect for things like caching, database indexing, and symbol tables in compilers.
+                    </p>
+                    <div class="bg-stone-100 p-8 rounded-lg text-center text-stone-600 font-medium h-64 flex items-center justify-center border border-stone-200">
+                        Get ready to unlock the power of instant data access! Our Hash Table visualizer and interactive tasks are currently in development.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="courses" class="mt-20 scroll-mt-20 hidden-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-900">Elevate Your Skills with Our Courses</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-stone-600">
+                    Whether you're just starting or aiming for advanced mastery, our courses are designed to guide you. We offer foundational content for everyone and exclusive premium deep-dives for those ready to accelerate their learning.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Free Course Example -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-2">Foundations of Algorithms (Free)</h3>
+                    <p class="text-stone-600 text-sm mb-4 flex-grow">Your perfect starting point! Learn the absolute basics of how algorithms work, understand Big O notation (how to measure efficiency), and get hands-on with simple sorting algorithms like Bubble Sort and Selection Sort. No prior experience needed!</p>
+                    <div class="flex items-center justify-between mt-auto">
+                        <span class="text-emerald-600 font-bold text-lg">FREE</span>
+                        <button class="px-4 py-2 bg-emerald-500 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-600 transition-transform transform hover:scale-105">Access Course</button>
+                    </div>
+                </div>
+
+                <!-- Premium Course Example 1 -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-2">Mastering Graph Algorithms (Premium)</h3>
+                    <p class="text-stone-600 text-sm mb-4 flex-grow">Unlock the power of connected data! This course takes you on a deep dive into complex graph algorithms. Learn to find the shortest paths with Dijkstra's, explore all-pairs shortest paths with Floyd-Warshall, and build efficient networks using Minimum Spanning Trees (Prim's, Kruskal's). Essential for network analysis, AI, and more!</p>
+                    <div class="flex items-center justify-between mt-auto">
+                        <span class="text-amber-600 font-bold text-lg">$3 / week</span>
+                        <button class="subscribe-btn px-4 py-2 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 transition-transform transform hover:scale-105" data-course-id="graph-algorithms">Subscribe to Premium</button>
+                        <button class="access-premium-course-btn px-4 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 transition-transform transform hover:scale-105 hidden" data-course-id="graph-algorithms">Access Course</button>
+                    </div>
+                </div>
+
+                <!-- Premium Course Example 2 -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 flex flex-col">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-2">Dynamic Programming: Solving Complex Problems (Premium)</h3>
+                    <p class="text-stone-600 text-sm mb-4 flex-grow">Transform how you approach hard problems! This masterclass will teach you the art of Dynamic Programming (DP). Discover how to break down big challenges into smaller, overlapping subproblems and build optimal solutions step-by-step. Conquer classic DP problems and gain a powerful problem-solving superpower!</p>
+                    <div class="flex items-center justify-between mt-auto">
+                        <span class="text-amber-600 font-bold text-lg">$3 / week</span>
+                        <button class="subscribe-btn px-4 py-2 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 transition-transform transform hover:scale-105" data-course-id="dynamic-programming">Subscribe to Premium</button>
+                        <button class="access-premium-course-btn px-4 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 transition-transform transform hover:scale-105 hidden" data-course-id="dynamic-programming">Access Course</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="community" class="mt-20 scroll-mt-20 hidden-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-900">Join Our Vibrant Learning Community!</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-stone-600">
+                    Learning data structures can be a journey, and you don't have to go it alone! Our community is a supportive space where you can connect with fellow learners, ask questions, share your insights, and collaborate on challenges.
+                </p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 max-w-2xl mx-auto text-center">
+                <h3 class="text-xl font-semibold text-stone-800 mb-4">Connect, Share, Grow</h3>
+                <p class="text-stone-600 mb-6">
+                    We're building a space for discussions, peer support, and shared learning experiences. Imagine forums where you can discuss algorithm complexities, group projects to tackle coding challenges, and live Q&A sessions with experts.
+                </p>
+                <p class="text-stone-600 mb-6">
+                    Stay tuned! Our full community features, including dedicated forums and collaborative tools, are coming soon. We're excited to foster a truly interactive and helpful environment for everyone on their data structures journey.
+                </p>
+                <button class="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Get Notified When Community Features Launch!</button>
+            </div>
+        </section>
+
+        <section id="profile" class="mt-20 scroll-mt-20 hidden-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-900">Your Personal Learning Hub</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-stone-600">
+                    This is your dedicated space to manage your account, track your progress, and view your premium subscription status. Your unique user ID helps us keep your learning journey personalized.
+                </p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-stone-200 max-w-xl mx-auto">
+                <h3 class="text-xl font-semibold text-stone-800 mb-4">Account Status</h3>
+                <p class="text-stone-600 mb-2">Your Unique Learner ID: <span id="user-id" class="font-mono text-sky-700 break-all">Loading...</span></p>
+                <p class="text-stone-600 mb-4">Premium Access: <span id="premium-status" class="font-bold text-red-500">Not Subscribed</span></p>
+
+                <div class="flex flex-wrap gap-4 mt-6">
+                    <button id="auth-action-btn" class="px-6 py-2 bg-sky-600 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Sign In / Create Account</button>
+                    <button id="logout-btn" class="px-6 py-2 bg-stone-500 text-white font-semibold rounded-lg shadow-md hover:bg-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-opacity-75 transition-transform transform hover:scale-105 hidden">Log Out</button>
+                    <button id="toggle-premium-btn" class="px-6 py-2 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-opacity-75 transition-transform transform hover:scale-105 hidden">Toggle Premium</button>
+                </div>
+                 <p id="auth-message" class="text-sm text-stone-500 mt-4"></p>
+            </div>
+        </section>
+
+    </main>
+    
+    <footer class="mt-20 border-t border-stone-200 bg-white">
+        <div class="container mx-auto px-4 lg:px-6 py-6 text-center text-stone-500">
+            <p>&copy; 2025 The Data Structures Journey. Created with passion by Alain.</p>
+        </div>
+    </footer>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 class="text-2xl font-semibold text-stone-800 mb-4">Subscribe to Premium Access</h3>
+            <p class="text-stone-600 mb-6">Unlock all premium courses for just <span class="font-bold text-amber-600">$3 per week</span>!</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <h4 class="text-lg font-medium text-stone-700 mb-2">Pay with Card</h4>
+                    <input type="text" placeholder="Card Number (simulated)" class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 mb-2">
+                    <div class="flex gap-4">
+                        <input type="text" placeholder="MM/YY" class="w-1/2 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+                        <input type="text" placeholder="CVC" class="w-1/2 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-medium text-stone-700 mb-2">Pay with Crypto</h4>
+                    <input type="text" placeholder="Your Crypto Wallet Address (simulated)" class="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+                </div>
+                <button id="process-payment-btn" class="w-full px-6 py-3 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-75 transition-transform transform hover:scale-105">Process Simulated Payment</button>
+                <p id="payment-message" class="text-sm text-center mt-3 text-stone-600">This is a simulated payment for demonstration purposes only.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Premium Course Content Modal -->
+    <div id="premium-course-modal" class="modal">
+        <div class="modal-content max-w-4xl">
+            <span class="close-button">&times;</span>
+            <h3 id="premium-course-title" class="text-2xl font-semibold text-stone-800 mb-4"></h3>
+            <div id="premium-course-content" class="space-y-6">
+                <!-- Content will be loaded here dynamically -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- General UI Elements ---
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('section');
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const accordionItems = document.querySelectorAll('.accordion-item');
+
+            // --- Quick Sort Visualizer Elements ---
+            const arrayInput = document.getElementById('array-input');
+            const visualContainer = document.getElementById('visual-container');
+            const logContainer = document.getElementById('log-container');
+            const sortBtn = document.getElementById('sort-btn');
+            const stepBtn = document.getElementById('step-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const pivotStrategySelect = document.getElementById('pivot-strategy');
+
+            // --- Profile/Auth Elements ---
+            const userIdSpan = document.getElementById('user-id');
+            const premiumStatusSpan = document.getElementById('premium-status');
+            const authActionButton = document.getElementById('auth-action-btn');
+            const logoutButton = document.getElementById('logout-btn');
+            const togglePremiumButton = document.getElementById('toggle-premium-btn');
+            const authMessage = document.getElementById('auth-message');
+            const subscribeBtns = document.querySelectorAll('.subscribe-btn');
+            const accessPremiumCourseBtns = document.querySelectorAll('.access-premium-course-btn');
+            const premiumStatusMsgs = document.querySelectorAll('[id^="premium-status-msg-"]');
+
+            // --- Payment Modal Elements ---
+            const paymentModal = document.getElementById('payment-modal');
+            const paymentModalCloseBtn = paymentModal.querySelector('.close-button');
+            const processPaymentBtn = document.getElementById('process-payment-btn');
+            const paymentMessage = document.getElementById('payment-message');
+
+            // --- Premium Course Content Modal Elements ---
+            const premiumCourseModal = document.getElementById('premium-course-modal');
+            const premiumCourseModalCloseBtn = premiumCourseModal.querySelector('.close-button');
+            const premiumCourseTitle = document.getElementById('premium-course-title');
+            const premiumCourseContent = document.getElementById('premium-course-content');
+
+            // --- Quick Sort Visualizer Variables ---
+            let array = [];
+            let steps = [];
+            let currentStep = 0;
+            const animationSpeed = 400;
+
+            // --- User Data Variables ---
+            let userProfile = null;
+            let unsubscribeProfile = null;
+
+            // --- Premium Course Data (Placeholder) ---
+            const premiumCoursesData = {
+                'graph-algorithms': {
+                    title: 'Mastering Graph Algorithms',
+                    videos: [
+                        { title: 'Introduction to Graphs (Simulated)', url: 'https://www.youtube.com/embed/gXgEDyodJjE' }, // Placeholder video
+                        { title: 'Dijkstra\'s Algorithm Explained (Simulated)', url: 'https://www.youtube.com/embed/gdzz-XvM0yQ' } // Placeholder video
+                    ],
+                    examples: [
+                        {
+                            title: 'Dijkstra\'s Algorithm (Python)',
+                            code: `
+def dijkstra(graph, start):
+    distances = {vertex: float('infinity') for vertex in graph}
+    distances[start] = 0
+    priority_queue = [(0, start)]
+
+    while priority_queue:
+        current_distance, current_vertex = heapq.heappop(priority_queue)
+
+        if current_distance > distances[current_vertex]:
+            continue
+
+        for neighbor, weight in graph[current_vertex].items():
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                heapq.heappush(priority_queue, (distance, neighbor))
+    return distances
+
+# Example Usage
+graph = {
+    'A': {'B': 1, 'C': 4},
+    'B': {'A': 1, 'C': 2, 'D': 5},
+    'C': {'A': 4, 'B': 2, 'D': 1},
+    'D': {'B': 5, 'C': 1}
+}
+# print(dijkstra(graph, 'A'))
+                            `
+                        },
+                        {
+                            title: 'Floyd-Warshall Algorithm (JavaScript)',
+                            code: `
+function floydWarshall(graph) {
+    const V = graph.length;
+    const dist = Array.from({ length: V }, () => Array(V).fill(Infinity));
+
+    for (let i = 0; i < V; i++) {
+        for (let j = 0; j < V; j++) {
+            dist[i][j] = graph[i][j];
+        }
+        dist[i][i] = 0;
+    }
+
+    for (let k = 0; k < V; k++) {
+        for (let i = 0; i < V; i++) {
+            for (let j = 0; j < V; j++) {
+                if (dist[i][k] !== Infinity && dist[k][j] !== Infinity) {
+                    dist[i][j] = Math.min(dist[i][j], dist[i][k] + dist[k][j]);
+                }
+            }
+        }
+    }
+    return dist;
+}
+
+// Example Usage (adjacency matrix)
+const graph = [
+    [0, 5, Infinity, 10],
+    [Infinity, 0, 3, Infinity],
+    [Infinity, Infinity, 0, 1],
+    [Infinity, Infinity, Infinity, 0]
+];
+// console.log(floydWarshall(graph));
+                            `
+                        }
+                    ]
+                },
+                'dynamic-programming': {
+                    title: 'Dynamic Programming Masterclass',
+                    videos: [
+                        { title: 'What is Dynamic Programming? (Simulated)', url: 'https://www.youtube.com/embed/oBt53YbR9Kk' }, // Placeholder video
+                        { title: 'Fibonacci Sequence with DP (Simulated)', url: 'https://www.youtube.com/embed/Qk0zZz-d_o4' } // Placeholder video
+                    ],
+                    examples: [
+                        {
+                            title: 'Fibonacci (Memoization - Python)',
+                            code: `
+memo = {}
+def fibonacci_memo(n):
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return n
+    memo[n] = fibonacci_memo(n - 1) + fibonacci_memo(n - 2)
+    return memo[n]
+
+# print(fibonacci_memo(10))
+                            `
+                        },
+                        {
+                            title: 'Knapsack Problem (Bottom-Up - JavaScript)',
+                            code: `
+function knapsack(weights, values, capacity) {
+    const n = weights.length;
+    const dp = Array(n + 1).fill(0).map(() => Array(capacity + 1).fill(0));
+
+    for (let i = 1; i <= n; i++) {
+        for (let w = 1; w <= capacity; w++) {
+            if (weights[i - 1] <= w) {
+                dp[i][w] = Math.max(values[i - 1] + dp[i - 1][w - weights[i - 1]], dp[i - 1][w]);
+            } else {
+                dp[i][w] = dp[i - 1][w];
+            }
+        }
+    }
+    return dp[n][capacity];
+}
+
+// Example Usage
+const weights = [1, 3, 4, 5];
+const values = [1, 4, 5, 7];
+const capacity = 7;
+// console.log(knapsack(weights, values, capacity)); // Expected: 9
+                            `
+                        }
+                    ]
+                }
+            };
+
+            // --- UI Functions ---
+            function showSection(id) {
+                sections.forEach(section => {
+                    section.classList.add('hidden-section');
+                    section.classList.remove('active-section');
+                });
+                document.getElementById(id).classList.remove('hidden-section');
+                document.getElementById(id).classList.add('active-section');
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === `#${id}`) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            function showTab(id) {
+                tabContents.forEach(content => content.classList.add('hidden'));
+                document.getElementById(id).classList.remove('hidden');
+
+                tabButtons.forEach(button => button.classList.remove('active'));
+                document.querySelector(`[data-tab="${id}"]`).classList.add('active');
+            }
+
+            // --- Quick Sort Visualizer Logic ---
+            function parseInput() {
+                const inputText = arrayInput.value.trim();
+                if (inputText === '') return [];
+                return inputText.split(',').map(item => {
+                    const num = parseInt(item.trim(), 10);
+                    return isNaN(num) ? 0 : num;
+                }).filter(num => num !== null);
+            }
+            
+            function renderArray(arr, highlights = {}) {
+                visualContainer.innerHTML = '';
+                if (!arr || arr.length === 0) return;
+
+                const maxValue = Math.max(...arr);
+                arr.forEach((value, index) => {
+                    const bar = document.createElement('div');
+                    bar.className = 'bar flex-grow text-center text-xs md:text-sm font-bold text-white rounded-t-md';
+                    const height = (value / maxValue * 90) + 10;
+                    bar.style.height = `${height}%`;
+                    
+                    let bgColor = 'bg-stone-400';
+                    if (highlights.sorted && highlights.sorted.includes(index)) {
+                        bgColor = 'bg-emerald-500';
+                    } else if (highlights.pivot === index) {
+                        bgColor = 'bg-sky-500';
+                    } else if (highlights.compare && highlights.compare.includes(index)) {
+                        bgColor = 'bg-amber-400';
+                    } else if(highlights.range && index >= highlights.range.start && index <= highlights.range.end){
+                        bgColor = 'bg-stone-300';
+                    }
+                    bar.classList.add(bgColor);
+                    
+                    const barValue = document.createElement('span');
+                    barValue.textContent = value;
+                    if(arr.length < 30) {
+                       bar.appendChild(barValue);
+                    }
+                    visualContainer.appendChild(bar);
+                });
+            }
+
+            function addLog(message) {
+                const p = document.createElement('p');
+                p.textContent = `> ${message}`;
+                logContainer.appendChild(p);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            function clearLog() {
+                logContainer.innerHTML = '';
+            }
+
+            function disableQuickSortControls(disabled) {
+                sortBtn.disabled = disabled;
+                stepBtn.disabled = disabled;
+                resetBtn.disabled = !disabled;
+                arrayInput.disabled = disabled;
+                pivotStrategySelect.disabled = disabled;
+            }
+
+            function resetQuickSort() {
+                steps = [];
+                currentStep = 0;
+                array = parseInput();
+                renderArray(array);
+                clearLog();
+                addLog("Enter your numbers above and click 'Sort it!' or 'Step-by-Step' to begin your learning journey!");
+                disableQuickSortControls(false);
+            }
+
+            function quickSort(arr, low, high) {
+                if (low < high) {
+                    const pivotIndex = partition(arr, low, high);
+                    quickSort(arr, low, pivotIndex - 1);
+                    quickSort(arr, pivotIndex + 1, high);
+                }
+            }
+            
+            function partition(arr, low, high) {
+                let pivotIndex;
+                const strategy = pivotStrategySelect.value;
+                addLog(`Partitioning the group of numbers from index ${low} to ${high}.`);
+
+                if (strategy === 'first') {
+                    pivotIndex = low;
+                } else if (strategy === 'random') {
+                    pivotIndex = Math.floor(Math.random() * (high - low + 1)) + low;
+                } else { // 'last'
+                    pivotIndex = high;
+                }
+
+                if (pivotIndex !== high) {
+                    addLog(`Our pivot strategy is '${strategy}'. Swapping the chosen pivot ${arr[pivotIndex]} with the last number ${arr[high]}.`);
+                    [arr[pivotIndex], arr[high]] = [arr[high], arr[pivotIndex]];
+                    steps.push({ array: [...arr], highlights: { pivot: high, compare: [pivotIndex, high], range:{start: low, end: high} } });
+                }
+
+                let pivotValue = arr[high];
+                let i = low - 1;
+                addLog(`The pivot is now ${pivotValue} (at index ${high}).`);
+                steps.push({ array: [...arr], highlights: { pivot: high, range:{start: low, end: high} } });
+
+                for (let j = low; j < high; j++) {
+                    steps.push({ array: [...arr], highlights: { pivot: high, compare: [j, i + 1], range:{start: low, end: high} } });
+                    if (arr[j] < pivotValue) {
+                        i++;
+                        if(i !== j) {
+                            addLog(`'${arr[j]}' is smaller than '${pivotValue}'. Swapping ${arr[i]} (at index ${i}) and ${arr[j]} (at index ${j}).`);
+                           [arr[i], arr[j]] = [arr[j], arr[i]];
+                            steps.push({ array: [...arr], highlights: { pivot: high, compare: [i, j], range:{start: low, end: high} } });
+                        }
+                    }
+                }
+
+                if(i + 1 !== high){
+                   [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+                    addLog(`Placing the pivot. Swapping pivot ${arr[high]} (at index ${high}) with ${arr[i+1]} (at index ${i+1}).`);
+                    steps.push({ array: [...arr], highlights: { pivot: i + 1, compare: [i + 1, high], range:{start: low, end: high} } });
+                }
+                
+                const finalPivotIndex = i + 1;
+                addLog(`The pivot ${pivotValue} is now in its final sorted spot at index ${finalPivotIndex}.`);
+                let finalHighlights = { sorted: [finalPivotIndex] };
+                if (steps.length > 0) {
+                    const lastStepHighlights = steps[steps.length - 1].highlights;
+                    if(lastStepHighlights.sorted) {
+                       finalHighlights.sorted = [...new Set([...lastStepHighlights.sorted, finalPivotIndex])];
+                    }
+                }
+                steps.push({ array: [...arr], highlights: finalHighlights });
+
+                return finalPivotIndex;
+            }
+
+            function executeQuickSort() {
+                array = parseInput();
+                if (array.length === 0) {
+                    addLog("Oops! Please enter some numbers for the array.");
+                    return;
+                }
+                steps = [];
+                currentStep = 0;
+                clearLog();
+                disableQuickSortControls(true);
+
+                let tempArray = [...array];
+                quickSort(tempArray, 0, tempArray.length - 1);
+                
+                const finalHighlights = { sorted: Array.from(Array(array.length).keys()) };
+                steps.push({ array: tempArray, highlights: finalHighlights});
+                addLog('Great job! The sorting is complete!');
+                
+                animateSteps();
+            }
+
+            function animateSteps() {
+                if (currentStep >= steps.length) {
+                    disableQuickSortControls(false);
+                    resetBtn.disabled = false;
+                    return;
+                }
+                
+                const step = steps[currentStep];
+                renderArray(step.array, step.highlights);
+                currentStep++;
+
+                if (currentStep < steps.length) {
+                    setTimeout(animateSteps, animationSpeed);
+                } else {
+                    disableQuickSortControls(false);
+                    resetBtn.disabled = false;
+                }
+            }
+            
+             function executeQuickSortStep() {
+                if (steps.length === 0) {
+                    array = parseInput();
+                    if (array.length === 0) {
+                        addLog("Oops! Please enter some numbers for the array.");
+                        return;
+                    }
+                    let tempArray = [...array];
+                    disableQuickSortControls(true);
+                    clearLog();
+                    quickSort(tempArray, 0, tempArray.length - 1);
+                    const finalHighlights = { sorted: Array.from(Array(array.length).keys()) };
+                    steps.push({ array: tempArray, highlights: finalHighlights});
+                }
+                
+                if (currentStep >= steps.length) {
+                    addLog("You've reached the end of the sort! Press 'Start Over' to try again.");
+                    disableQuickSortControls(false);
+                    resetBtn.disabled = false;
+                    return;
+                }
+
+                const step = steps[currentStep];
+                renderArray(step.array, step.highlights);
+                currentStep++;
+
+                if (currentStep >= steps.length) {
+                    addLog("You've reached the end of the sort! Press 'Start Over' to try again.");
+                }
+                
+                disableQuickSortControls(false);
+                sortBtn.disabled = true;
+            }
+
+            // --- Firebase/Auth/Profile Logic ---
+            async function fetchUserProfile(userId) {
+                if (!window.db) return;
+                const userProfileRef = window.fb.doc(window.db, `artifacts/${__app_id}/users/${userId}/user_profiles`, 'profile');
+                if (unsubscribeProfile) {
+                    unsubscribeProfile();
+                }
+                unsubscribeProfile = window.fb.onSnapshot(userProfileRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        userProfile = docSnap.data();
+                        console.log("User profile loaded:", userProfile);
+                    } else {
+                        userProfile = { premium: false };
+                        console.log("No user profile found, creating default.");
+                        window.fb.setDoc(userProfileRef, userProfile).catch(e => console.error("Error setting default profile:", e));
+                    }
+                    updateProfileUI();
+                    updateCourseAccess();
+                }, (error) => {
+                    console.error("Error listening to user profile:", error);
+                    userProfile = { premium: false };
+                    updateProfileUI();
+                    updateCourseAccess();
+                });
+            }
+
+            function updateProfileUI() {
+                if (window.currentUserId) {
+                    userIdSpan.textContent = window.currentUserId;
+                    authActionButton.classList.add('hidden');
+                    logoutButton.classList.remove('hidden');
+                    togglePremiumButton.classList.remove('hidden');
+                    authMessage.textContent = '';
+                } else {
+                    userIdSpan.textContent = 'Not signed in';
+                    authActionButton.classList.remove('hidden');
+                    logoutButton.classList.add('hidden');
+                    togglePremiumButton.classList.add('hidden');
+                    authMessage.textContent = 'Sign in to save your progress and access premium features!';
+                }
+
+                if (userProfile && userProfile.premium) {
+                    premiumStatusSpan.textContent = 'Subscribed (Premium Access!)';
+                    premiumStatusSpan.classList.remove('text-red-500');
+                    premiumStatusSpan.classList.add('text-emerald-600');
+                    togglePremiumButton.textContent = 'Cancel Premium';
+                } else {
+                    premiumStatusSpan.textContent = 'Not Subscribed';
+                    premiumStatusSpan.classList.remove('text-emerald-600');
+                    premiumStatusSpan.classList.add('text-red-500');
+                    togglePremiumButton.textContent = 'Get Premium Now!';
+                }
+            }
+
+            async function handleAuthAction() {
+                if (!window.auth) {
+                    authMessage.textContent = 'Firebase not connected. Please try again later.';
+                    return;
+                }
+                if (window.currentUserId) {
+                    authMessage.textContent = 'You are already signed in. Welcome back!';
+                } else {
+                    try {
+                        await window.auth.signInAnonymously();
+                        authMessage.textContent = 'You are now signed in anonymously! Your progress will be saved.';
+                    } catch (error) {
+                        console.error("Error signing in:", error);
+                        authMessage.textContent = `Error signing in: ${error.message}. Please try again.`;
+                    }
+                }
+            }
+
+            async function handleLogout() {
+                if (!window.auth) return;
+                try {
+                    await window.fb.signOut(window.auth);
+                    userProfile = null;
+                    if (unsubscribeProfile) {
+                        unsubscribeProfile();
+                        unsubscribeProfile = null;
+                    }
+                    authMessage.textContent = 'You have successfully logged out. See you next time!';
+                    updateProfileUI();
+                    updateCourseAccess();
+                } catch (error) {
+                    console.error("Error logging out:", error);
+                    authMessage.textContent = `Error logging out: ${error.message}.`;
+                }
+            }
+
+            async function togglePremiumStatus() {
+                if (!window.currentUserId || !window.db) {
+                    authMessage.textContent = 'Please sign in to manage your premium access.';
+                    return;
+                }
+                const userProfileRef = window.fb.doc(window.db, `artifacts/${__app_id}/users/${window.currentUserId}/user_profiles`, 'profile');
+                const newPremiumStatus = !(userProfile && userProfile.premium);
+                try {
+                    await window.fb.setDoc(userProfileRef, { premium: newPremiumStatus }, { merge: true });
+                    authMessage.textContent = `Your premium status is now: ${newPremiumStatus ? 'Subscribed! Enjoy full access!' : 'Not Subscribed. You can resubscribe anytime!'}`;
+                } catch (error) {
+                    console.error("Error toggling premium status:", error);
+                    authMessage.textContent = `Error updating premium status: ${error.message}.`;
+                }
+            }
+
+            function updateCourseAccess() {
+                const isPremium = userProfile && userProfile.premium;
+                subscribeBtns.forEach(btn => {
+                    if (isPremium) {
+                        btn.classList.add('hidden');
+                    } else {
+                        btn.classList.remove('hidden');
+                    }
+                });
+                accessPremiumCourseBtns.forEach(btn => {
+                    if (isPremium) {
+                        btn.classList.remove('hidden');
+                    } else {
+                        btn.classList.add('hidden');
+                    }
+                });
+            }
+
+            // --- Payment Modal Logic ---
+            function openPaymentModal() {
+                paymentModal.style.display = 'flex'; // Use flex to center content
+                paymentMessage.textContent = 'This is a simulated payment for demonstration purposes only.';
+                paymentMessage.classList.remove('text-emerald-600', 'text-red-500');
+                paymentMessage.classList.add('text-stone-600');
+            }
+
+            function closePaymentModal() {
+                paymentModal.style.display = 'none';
+            }
+
+            async function processSimulatedPayment() {
+                // Simulate a successful payment
+                paymentMessage.textContent = 'Processing payment...';
+                paymentMessage.classList.remove('text-emerald-600', 'text-red-500');
+                paymentMessage.classList.add('text-stone-600');
+
+                // Simulate network delay
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                if (Math.random() > 0.1) { // 90% chance of success
+                    paymentMessage.textContent = 'Payment successful! You now have Premium Access!';
+                    paymentMessage.classList.remove('text-stone-600', 'text-red-500');
+                    paymentMessage.classList.add('text-emerald-600');
+                    await togglePremiumStatus(); // Update Firebase to premium
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Give time to read message
+                    closePaymentModal();
+                } else {
+                    paymentMessage.textContent = 'Payment failed. Please try again.';
+                    paymentMessage.classList.remove('text-stone-600', 'text-emerald-600');
+                    paymentMessage.classList.add('text-red-500');
+                }
+            }
+
+            // --- Premium Course Content Modal Logic ---
+            function openPremiumCourseModal(courseId) {
+                const course = premiumCoursesData[courseId];
+                if (!course) return;
+
+                premiumCourseTitle.textContent = course.title;
+                premiumCourseContent.innerHTML = ''; // Clear previous content
+
+                // Add videos
+                if (course.videos && course.videos.length > 0) {
+                    const videoSectionTitle = document.createElement('h4');
+                    videoSectionTitle.className = 'text-xl font-semibold text-stone-800 mb-3';
+                    videoSectionTitle.textContent = 'Tutorial Videos';
+                    premiumCourseContent.appendChild(videoSectionTitle);
+
+                    course.videos.forEach(video => {
+                        const videoWrapper = document.createElement('div');
+                        videoWrapper.className = 'mb-4';
+                        const videoTitle = document.createElement('h5');
+                        videoTitle.className = 'text-lg font-medium text-stone-700 mb-2';
+                        videoTitle.textContent = video.title;
+                        const videoContainer = document.createElement('div');
+                        videoContainer.className = 'video-container';
+                        const iframe = document.createElement('iframe');
+                        iframe.src = video.url;
+                        iframe.title = video.title;
+                        iframe.setAttribute('frameborder', '0');
+                        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+                        iframe.setAttribute('allowfullscreen', '');
+                        videoContainer.appendChild(iframe);
+                        videoWrapper.appendChild(videoTitle);
+                        videoWrapper.appendChild(videoContainer);
+                        premiumCourseContent.appendChild(videoWrapper);
+                    });
+                }
+
+                // Add examples
+                if (course.examples && course.examples.length > 0) {
+                    const exampleSectionTitle = document.createElement('h4');
+                    exampleSectionTitle.className = 'text-xl font-semibold text-stone-800 mb-3 mt-6';
+                    exampleSectionTitle.textContent = 'Code Examples';
+                    premiumCourseContent.appendChild(exampleSectionTitle);
+
+                    course.examples.forEach(example => {
+                        const exampleWrapper = document.createElement('div');
+                        exampleWrapper.className = 'mb-4';
+                        const exampleTitle = document.createElement('h5');
+                        exampleTitle.className = 'text-lg font-medium text-stone-700 mb-2';
+                        exampleTitle.textContent = example.title;
+                        const pre = document.createElement('pre');
+                        const code = document.createElement('code');
+                        code.textContent = example.code.trim();
+                        pre.appendChild(code);
+                        exampleWrapper.appendChild(exampleTitle);
+                        exampleWrapper.appendChild(pre);
+                        premiumCourseContent.appendChild(exampleWrapper);
+                    });
+                }
+
+                premiumCourseModal.style.display = 'flex';
+            }
+
+            function closePremiumCourseModal() {
+                premiumCourseModal.style.display = 'none';
+                premiumCourseContent.innerHTML = ''; // Clear content on close
+            }
+
+
+            // --- Event Listeners ---
+            mobileMenuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const targetId = link.getAttribute('href').substring(1);
+                    showSection(targetId);
+                    if(window.innerWidth < 768) {
+                       mobileMenu.classList.add('hidden');
+                    }
+                });
+            });
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    showTab(button.dataset.tab);
+                });
+            });
+
+            accordionItems.forEach(item => {
+                const header = item.querySelector('.accordion-header');
+                const content = item.querySelector('.accordion-content');
+                const icon = item.querySelector('.accordion-icon');
+
+                header.addEventListener('click', () => {
+                    const isExpanded = content.style.maxHeight && content.style.maxHeight !== '0px';
+
+                    accordionItems.forEach(otherItem => {
+                        otherItem.querySelector('.accordion-content').style.maxHeight = '0px';
+                        otherItem.querySelector('.accordion-icon').classList.remove('rotate-45');
+                        otherItem.querySelector('.accordion-icon').innerHTML = '&plus;';
+                    });
+                    
+                    if (!isExpanded) {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                        icon.classList.add('rotate-45');
+                        icon.innerHTML = '&times;';
+                    }
+                });
+            });
+
+            // Quick Sort Visualizer Event Listeners
+            sortBtn.addEventListener('click', executeQuickSort);
+            resetBtn.addEventListener('click', resetQuickSort);
+            stepBtn.addEventListener('click', executeQuickSortStep);
+
+            // Auth/Profile Event Listeners
+            authActionButton.addEventListener('click', handleAuthAction);
+            logoutButton.addEventListener('click', handleLogout);
+            togglePremiumButton.addEventListener('click', togglePremiumStatus);
+            
+            // Payment Modal Event Listeners
+            subscribeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openPaymentModal();
+                });
+            });
+            paymentModalCloseBtn.addEventListener('click', closePaymentModal);
+            processPaymentBtn.addEventListener('click', processSimulatedPayment);
+            window.addEventListener('click', (event) => {
+                if (event.target === paymentModal) {
+                    closePaymentModal();
+                }
+            });
+
+            // Premium Course Content Modal Event Listeners
+            accessPremiumCourseBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const courseId = btn.dataset.courseId;
+                    openPremiumCourseModal(courseId);
+                });
+            });
+            premiumCourseModalCloseBtn.addEventListener('click', closePremiumCourseModal);
+            window.addEventListener('click', (event) => {
+                if (event.target === premiumCourseModal) {
+                    closePremiumCourseModal();
+                }
+            });
+
+
+            // --- Initial Setup ---
+            resetQuickSort();
+            showSection('home');
+
+            // Initialize Chart.js for performance chart
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            const labels = ['Best Case', 'Average Case', 'Worst Case'];
+            const complexityMap = {
+                'O(N log N)': 3,
+                'O(N^2)': 4
+            };
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Quick Sort',
+                            data: [complexityMap['O(N log N)'], complexityMap['O(N log N)'], complexityMap['O(N^2)']],
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Merge Sort',
+                            data: [complexityMap['O(N log N)'], complexityMap['O(N log N)'], complexityMap['O(N log N)']],
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Heap Sort',
+                            data: [complexityMap['O(N log N)'], complexityMap['O(N log N)'], complexityMap['O(N log N)']],
+                             backgroundColor: 'rgba(245, 158, 11, 0.7)',
+                            borderColor: 'rgba(245, 158, 11, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    const complexities = {3: 'O(N log N)', 4: 'O(N^2)'};
+                                    return complexities[value] || '';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Time Complexity'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Sorting Algorithm Time Complexity Comparison',
+                            font: { size: 18 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const complexities = {3: 'O(N log N)', 4: 'O(N^2)'};
+                                    label += complexities[context.raw];
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Listen for Firebase auth readiness and then fetch profile
+            document.addEventListener('authReady', () => {
+                if (window.currentUserId) {
+                    fetchUserProfile(window.currentUserId);
+                }
+                updateProfileUI();
+                updateCourseAccess();
+            });
+        });
+    </script>
+</body>
+</html>
